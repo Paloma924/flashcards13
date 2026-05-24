@@ -157,4 +157,182 @@
             { h: "面包", p: "Miàn bāo", m: "Pan" },
             { h: "米饭", p: "Mǐ fàn", m: "Arroz" },
             { h: "白饭", p: "Bái fàn", m: "Arroz blanco" },
-            { h: "炒饭", p: "Chǎo fàn", m: "Arro
+            { h: "炒饭", p: "Chǎo fàn", m: "Arroz frito" },
+            { h: "汉堡", p: "Hàn bǎo", m: "Hamburguesa" },
+            { h: "蔬菜", p: "Shū cài", m: "Verdura" },
+            { h: "鱼", p: "Yú", m: "Pescado" },
+            { h: "鸡蛋", p: "Jī dàn", m: "Huevo" },
+            { h: "沙拉", p: "Shā là", m: "Ensalada" },
+            { h: "肉", p: "Ròu", m: "Carne" },
+            { h: "鸡肉", p: "Jī ròu", m: "Pollo" },
+            { h: "牛肉", p: "Niú ròu", m: "Ternera" },
+            { h: "猪肉", p: "Zhū ròu", m: "Cerdo" },
+            { h: "羊肉", p: "Yáng ròu", m: "Cordero" },
+            { h: "水果", p: "Shuǐ guǒ", m: "Fruta" },
+            { h: "香蕉", p: "Xiāng jiāo", m: "Plátano" },
+            { h: "苹果", p: "Píng guǒ", m: "Manzana" },
+            { h: "西瓜", p: "Xī guā", m: "Sandía" },
+            { h: "橙子", p: "Chéng zi", m: "Naranja" },
+            { h: "葡萄", p: "Pú táo", m: "Uvas" },
+            { h: "甜点", p: "Tián diàn", m: "Postre" },
+            { h: "冰淇淋", p: "Bīng qí lín", m: "Helado" },
+            { h: "巧克力", p: "Qiǎo kè lì", m: "Chocolate" },
+            { h: "蛋糕", p: "Dàn gāo", m: "Tarta, pastel" }
+        ];
+
+        var index = 0;
+        var card = document.getElementById('card');
+        var micBtn = document.getElementById('micBtn');
+        var micResult = document.getElementById('micResult');
+        var isListening = false;
+
+        var Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+        var rec = Speech ? new Speech() : null;
+        if (rec) {
+            rec.lang = 'zh-CN';
+            rec.interimResults = false;
+            rec.maxAlternatives = 5;
+        }
+
+        // Solicitar permiso del micrófono al cargar la página
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(function(stream) {
+                    stream.getTracks().forEach(function(t) { t.stop(); });
+                })
+                .catch(function() {});
+        }
+
+        function render() {
+            card.classList.remove('flipped');
+            var item = vocabulary[index];
+            document.getElementById('displayHanzi').innerText = item.h;
+            document.getElementById('displayPinyin').innerText = item.p;
+            document.getElementById('displayMeaning').innerText = item.m;
+            document.getElementById('counter').innerText = "Tarjeta " + (index + 1) + " de " + vocabulary.length;
+            hideMicResult();
+        }
+
+        function showMicResult(type, msg) {
+            micResult.className = type;
+            micResult.innerText = msg;
+            micResult.style.display = 'block';
+        }
+
+        function hideMicResult() {
+            micResult.style.display = 'none';
+            micResult.className = '';
+        }
+
+        function setListening(on) {
+            isListening = on;
+            if (on) {
+                micBtn.textContent = '🔴 Escuchando...';
+                micBtn.classList.add('listening');
+                showMicResult('listening', '🎙️ Di la palabra en chino...');
+            } else {
+                micBtn.textContent = '🎙️ Hablar';
+                micBtn.classList.remove('listening');
+            }
+        }
+
+        document.getElementById('cardContainer').addEventListener('click', function() {
+            card.classList.toggle('flipped');
+        });
+
+        document.getElementById('nextBtn').addEventListener('click', function() {
+            if (index < vocabulary.length - 1) { index++; } else { index = 0; }
+            render();
+        });
+
+        document.getElementById('prevBtn').addEventListener('click', function() {
+            if (index > 0) { index--; } else { index = vocabulary.length - 1; }
+            render();
+        });
+
+        document.getElementById('listenBtn').addEventListener('click', function(e) {
+            e.stopPropagation();
+            window.speechSynthesis.cancel();
+            var u = new SpeechSynthesisUtterance(vocabulary[index].h);
+            u.lang = 'zh-CN';
+            window.speechSynthesis.speak(u);
+        });
+
+        micBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+
+            if (!rec) {
+                showMicResult('incorrect', '❌ Tu navegador no soporta reconocimiento de voz. Usa Google Chrome.');
+                return;
+            }
+
+            if (isListening) {
+                rec.stop();
+                return;
+            }
+
+            setListening(true);
+
+            try {
+                rec.start();
+            } catch(err) {
+                setListening(false);
+                showMicResult('incorrect', '❌ Error al iniciar el micrófono. Inténtalo de nuevo.');
+            }
+
+            rec.onresult = function(event) {
+                setListening(false);
+                var expected = vocabulary[index].h.trim();
+
+                // Buscar la mejor alternativa que coincida con el esperado
+                var bestMatch = null;
+                var bestConfidence = 0;
+
+                for (var i = 0; i < event.results[0].length; i++) {
+                    var alt = event.results[0][i];
+                    var transcript = alt.transcript.trim();
+                    var confidence = alt.confidence;
+
+                    if (transcript === expected && confidence > bestConfidence) {
+                        bestMatch = alt;
+                        bestConfidence = confidence;
+                    }
+                }
+
+                var topTranscript = event.results[0][0].transcript.trim();
+
+                if (bestMatch) {
+                    // Coincide — distinguir Perfecto vs Bien por confianza
+                    if (bestConfidence >= 0.8) {
+                        showMicResult('perfect', '🌟 ¡Perfecto! (' + Math.round(bestConfidence * 100) + '%)');
+                        card.classList.add('flipped');
+                    } else {
+                        showMicResult('good', '👍 ¡Bien! Pronunciación aceptable (' + Math.round(bestConfidence * 100) + '%) — sigue practicando');
+                        card.classList.add('flipped');
+                    }
+                } else {
+                    // No coincide
+                    showMicResult('incorrect', '❌ Se entendió: "' + topTranscript + '"  |  Esperado: ' + expected);
+                }
+            };
+
+            rec.onerror = function(event) {
+                setListening(false);
+                if (event.error === 'no-speech') {
+                    showMicResult('incorrect', '🔇 No se detectó ninguna voz. Inténtalo de nuevo.');
+                } else if (event.error === 'not-allowed') {
+                    showMicResult('incorrect', '🚫 Permiso de micrófono denegado. Actívalo en el navegador.');
+                } else {
+                    showMicResult('incorrect', '❌ Error al escuchar. Inténtalo de nuevo.');
+                }
+            };
+
+            rec.onend = function() {
+                if (isListening) setListening(false);
+            };
+        });
+
+        render();
+    </script>
+</body>
+</html>
